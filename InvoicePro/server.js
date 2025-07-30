@@ -18,7 +18,7 @@ const corsOptions = {
   origin: [
     'http://localhost:5173', // Development
     'http://localhost:3000', // Alternative dev port
-    'https://invoice-pro-wine.vercel.app', 
+    invoice-pro-git-main-raunaks-projects-2ec5b3d0.vercel.app
     'https://*.vercel.app', // All Vercel subdomains
   ],
   credentials: true,
