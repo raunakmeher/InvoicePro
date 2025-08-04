@@ -26,7 +26,43 @@ app.use(bodyParser.json());
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+})
+  .then(async () => {
+  console.log('Connected to MongoDB successfully');
+  
+  // Fix the username index issue
+  try {
+    const db = mongoose.connection.db;
+    const collections = await db.listCollections().toArray();
+    const usersCollection = collections.find(col => col.name === 'users');
+    
+    if (usersCollection) {
+      // Drop the problematic username index if it exists
+      try {
+        await db.collection('users').dropIndex('username_1');
+        console.log('Dropped problematic username index');
+      } catch (indexError) {
+        // Index doesn't exist, which is fine
+        console.log('Username index already removed or doesn\'t exist');
+      }
+    }
+  } catch (error) {
+    console.log('Index cleanup error (non-critical):', error.message);
+  }
+})
+.catch((err) => {
+  console.error('MongoDB connection error:', err);
 });
+// Check environment variables
+if (!process.env.JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not set!');
+}
+
+if (!process.env.MONGO_URI) {
+  console.error('MONGO_URI environment variable is not set!');
+}
+
+
 
 const invoiceSchema = new mongoose.Schema({
   invoiceNumber: String,
@@ -265,19 +301,29 @@ app.post('/api/auth/register', async (req, res) => {
 // Login route
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log('Login attempt for email:', email);
   try {
     const user = await User.findOne({ email });
     if (!user) {
+      console.log('User not found:', email);
       return res.status(400).json({ error: 'Invalid credentials' });
     }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('Password mismatch for user:', email);
       return res.status(400).json({ error: 'Invalid credentials' });
     }
-    const token = jwt.sign({ userId: user._id, username: user.username }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET is not set!');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+    
+    const token = jwt.sign({ userId: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log('Login successful for user:', email);
     res.json({ token });
   } catch (err) {
-    res.status(500).json({ error: 'Login failed' });
+   console.error('Login error:', err);
+    res.status(500).json({ error: 'Login failed', details: err.message });
   }
 });
 
